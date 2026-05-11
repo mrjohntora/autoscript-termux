@@ -4,7 +4,7 @@
 # Fresh Termux Setup Script
 # =========================================================
 
-set -e
+set -eo pipefail
 
 # ---------------------------------------------------------
 # Check if running inside Termux
@@ -21,10 +21,10 @@ fi
 # ---------------------------------------------------------
 # Check package manager
 # ---------------------------------------------------------
-if ! command -v apt >/dev/null 2>&1; then
+if ! command -v pkg >/dev/null 2>&1; then
     echo ""
-    echo "[ERROR] APT package manager not found."
-    echo "This script only supports Termux environments using APT."
+    echo "[ERROR] pkg package manager not found."
+    echo "This script only supports Termux environments using pkg."
     echo "Aborting setup."
     echo ""
     exit 1
@@ -39,14 +39,14 @@ sleep 1
 # Update repositories and packages
 # ---------------------------------------------------------
 echo "[1/7] Updating packages..."
-apt update -y && apt upgrade -y
+pkg update -y && pkg upgrade -y
 
 # ---------------------------------------------------------
 # Install essential packages
 # ---------------------------------------------------------
 echo "[2/7] Installing essential packages..."
 
-apt install -y \
+pkg install -y \
     bash \
     curl \
     wget \
@@ -71,7 +71,11 @@ apt install -y \
 # Setup storage access
 # ---------------------------------------------------------
 echo "[3/7] Setting up storage permissions..."
-termux-setup-storage
+if [ ! -d "$HOME/storage" ]; then
+    termux-setup-storage || echo "[WARN] Storage setup requires manual permission grant. Run 'termux-setup-storage' later."
+else
+    echo "Storage already configured, skipping..."
+fi
 
 # ---------------------------------------------------------
 # Configure shell aliases
@@ -91,14 +95,16 @@ alias la='ls -A'
 alias gs='git status'
 alias gc='git commit'
 alias gp='git push'
-alias update='apt update && apt upgrade -y'
+alias update='pkg update && pkg upgrade -y'
 alias cls='clear'
 
 # ===== Welcome =====
-echo ""
-echo "Welcome to Termux 🚀"
-neofetch
-echo ""
+if [ -n "$PS1" ]; then
+    echo ""
+    echo "Welcome to Termux"
+    command -v neofetch >/dev/null 2>&1 && neofetch
+    echo ""
+fi
 
 EOF
 fi
@@ -108,8 +114,13 @@ fi
 # ---------------------------------------------------------
 echo "[5/7] Installing Python tools..."
 
-pip install --upgrade pip
-pip install virtualenv
+if python -c 'import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)' 2>/dev/null; then
+    pip install --upgrade pip --break-system-packages
+    pip install virtualenv --break-system-packages
+else
+    pip install --upgrade pip
+    pip install virtualenv
+fi
 
 # ---------------------------------------------------------
 # Generate SSH key
@@ -118,12 +129,16 @@ echo "[6/7] Checking SSH key..."
 
 if [ ! -f "$HOME/.ssh/id_ed25519" ]; then
     mkdir -p "$HOME/.ssh"
+    chmod 700 "$HOME/.ssh"
 
     ssh-keygen \
         -t ed25519 \
         -C "termux@android" \
         -f "$HOME/.ssh/id_ed25519" \
         -N ""
+
+    chmod 600 "$HOME/.ssh/id_ed25519"
+    chmod 644 "$HOME/.ssh/id_ed25519.pub"
 
     echo ""
     echo "SSH key generated successfully:"
@@ -137,8 +152,8 @@ fi
 # Cleanup
 # ---------------------------------------------------------
 echo "[7/7] Cleaning package cache..."
-apt autoremove -y
-apt autoclean -y
+pkg autoclean -y
+apt autoremove -y 2>/dev/null || true
 
 echo ""
 echo "========================================="
