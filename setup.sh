@@ -80,7 +80,10 @@ echo "[4/7] Configuring shell aliases..."
 
 BASHRC="$HOME/.bashrc"
 
-cat << 'EOF' >> "$BASHRC"
+if grep -q "# ===== Custom Aliases =====" "$BASHRC" 2>/dev/null; then
+    echo "Shell aliases already configured, skipping..."
+else
+    cat << 'EOF' >> "$BASHRC"
 
 # ===== Custom Aliases =====
 alias ll='ls -lah'
@@ -98,6 +101,7 @@ neofetch
 echo ""
 
 EOF
+fi
 
 # ---------------------------------------------------------
 # Install Python tools
